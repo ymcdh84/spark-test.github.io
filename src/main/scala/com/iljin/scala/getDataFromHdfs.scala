@@ -1,6 +1,5 @@
 package com.iljin.scala
 
-import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
@@ -23,12 +22,10 @@ object getDataFromHdfs {
     val sc = spark.sparkContext
     sc.setLogLevel("ERROR")
 
-    val pRDD  = sc.textFile("path_of_your_file")
-    .flatMap(line => line.split(" "))
-    .map{word=>(word,word.length)}
-    
     //HDFS 파일 시스템에 있는 파일을 RDD 로드
-    val lines = sc.textFile("hdfs://ijdn01.iljincns.co.kr:8020/user/logstash/dt=2020-10-05/logstash-05.log")
+    val lines = sc.textFile("hdfs://ijdn01.iljincns.co.kr:8020/user/logstash/dt=2020-10-20/cutparam-06.log")
+
+    //lines.collect().foreach(p => println(p))
 
     //[step-1] <[{> RowsData 앞 데이터 분리
     val rdd2 = lines.flatMap(_.split(",\"RowsData\":\\[\\{"))
@@ -59,6 +56,14 @@ object getDataFromHdfs {
       }
     })
 
+//    frontLine.collect().foreach(p => println(p))
+//        println("=================")
+//        println("=================")
+//    frontLineNone.collect().foreach(p => println(p))
+//        println("=================")
+//        println("=================")
+//    backLine.collect().foreach(p => println(p))
+
     //[step-3] <},{> RowsData 분리
     val rowsData = rdd3.flatMap(v => {
       if (!v.contains("timestamp")) {
@@ -85,29 +90,55 @@ object getDataFromHdfs {
     var rowsDataIdx = rowsDataIdxT2.flatMapValues(_.split("},\\{"))
 
     //[step-7] frontBackLine 와 RowData 데이터 Join
-
     val resultData = frontBackLine.join(rowsDataIdx).sortByKey()
+
+    //resultData.collect.foreach(p => println(p))
+
     val tupleList = resultData.map(v => {
                        (v._2._1._1 + "," + v._2._1._2 + "," + v._2._2)
                     })
 
+    //배열형태로 변경
     val tupleList2 = tupleList.map(
                       row => {
                         row.split(",")
                       })
 
-    //[step-9] dataFrame 으로 변경
-    val tutu = tupleList2.map(p => Row(p:_*))
+    //키값 분리
+    val keys = tupleList2.map(row => {
+      row.map(row2 => {
+        val a = row2.split("\":\"")
+        a(0).replace("\"","")
+      })
+    })
 
-    val schemaString = "callId oCallId callTime duration calltype swId"
+    //데이터값 분리
+    val values = tupleList2.map(row => {
+      row.map(row2 => {
+        val a = row2.split("\":\"")
+        a(1).replace("\"","")
+      })
+    })
 
-    // Generate the schema based on the string of schema
+    //[step-8] dataFrame 으로 변경
+    val tutu = values.map(p => Row(p:_*))
+
+    // 컬럼명 추출
+    val realKey = keys.first
+
+    val schemaString = realKey.mkString(" ")
+
+//    print(schemaString)
+//
+//    values.collect.foreach(p => println(p))
+
     val schema =
       StructType(
         schemaString.split(" ").map(fieldName => StructField(fieldName, StringType, true)))
 
+    // 데이터셋으로 변환
     val df = spark.createDataFrame(tutu , schema)
-    df.show
+    df.show(50, false)
   }
 }
 
