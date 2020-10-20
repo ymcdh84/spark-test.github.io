@@ -25,55 +25,45 @@ object getDataFromHdfs {
     //HDFS 파일 시스템에 있는 파일을 RDD 로드
     val lines = sc.textFile("hdfs://ijdn01.iljincns.co.kr:8020/user/logstash/dt=2020-10-20/cutparam-06.log")
 
-    //lines.collect().foreach(p => println(p))
-
-    //[step-1] <[{> RowsData 앞 데이터 분리
+    //[STEP-1] <[{> RowsData 앞 데이터 분리
     val rdd2 = lines.flatMap(_.split(",\"RowsData\":\\[\\{"))
 
     val frontLine = rdd2.flatMap(v => {
-      if (v.contains("version")) {
+      if(v.slice(0, 2) == "{\""){
         Some(v.slice(1, v.length))
-      } else {
+      }else{
         None
       }
     })
 
-    //[step-2] <}]> RowsData 뒷 데이터 분리
+    //[STEP-2] <}]> RowsData 뒷 데이터 분리
     val frontLineNone = rdd2.flatMap(v => {
-      if (!v.contains("version")) {
-        Some(v)
-      } else {
-        None
-      }
+        if (!(v.slice(0, 2) == "{\"")) {
+          Some(v)
+        } else {
+          None
+        }
     })
 
     val rdd3 = frontLineNone.flatMap(_.split("}],"))
     val backLine = rdd3.flatMap(v => {
-      if (v.contains("timestamp")) {
+      if (v.slice(v.length - 2, v.length) == "\"}") {
         Some(v.slice(0, v.length - 1))
       } else {
         None
       }
     })
 
-//    frontLine.collect().foreach(p => println(p))
-//        println("=================")
-//        println("=================")
-//    frontLineNone.collect().foreach(p => println(p))
-//        println("=================")
-//        println("=================")
-//    backLine.collect().foreach(p => println(p))
-
-    //[step-3] <},{> RowsData 분리
+    //[STEP-3] <},{> RowsData 분리
     val rowsData = rdd3.flatMap(v => {
-      if (!v.contains("timestamp")) {
+      if (!(v.slice(v.length - 2, v.length) == "\"}")) {
         Some(v)
       } else {
         None
       }
     })
 
-    //[step-4] frontLine,backLine Index append
+    //[STEP-4] frontLine,backLine Index append
     val frontLineIdxT = frontLine.zipWithIndex();
     val frontLineIdx = frontLineIdxT.map { case (k, v) => (v, k) };
 
@@ -82,17 +72,15 @@ object getDataFromHdfs {
 
     val frontBackLine = frontLineIdx.join(backLineIdx).sortByKey()
 
-    //[step-5] RowsData Index append
+    //[STEP-5] RowsData Index append
     val rowsDataIdxT = rowsData.zipWithIndex();
     val rowsDataIdxT2 = rowsDataIdxT.map { case (k, v) => (v, k) }
 
-    //[step-6] RowData 분리_index별 rowData
+    //[STEP-6] RowData 분리_index별 rowData
     var rowsDataIdx = rowsDataIdxT2.flatMapValues(_.split("},\\{"))
 
-    //[step-7] frontBackLine 와 RowData 데이터 Join
+    //[STEP-7] frontBackLine 와 RowData 데이터 Join
     val resultData = frontBackLine.join(rowsDataIdx).sortByKey()
-
-    //resultData.collect.foreach(p => println(p))
 
     val tupleList = resultData.map(v => {
                        (v._2._1._1 + "," + v._2._1._2 + "," + v._2._2)
@@ -120,25 +108,20 @@ object getDataFromHdfs {
       })
     })
 
-    //[step-8] dataFrame 으로 변경
+    //[STEP-8] dataFrame 으로 변경
     val tutu = values.map(p => Row(p:_*))
 
     // 컬럼명 추출
     val realKey = keys.first
-
     val schemaString = realKey.mkString(" ")
-
-//    print(schemaString)
-//
-//    values.collect.foreach(p => println(p))
-
     val schema =
       StructType(
         schemaString.split(" ").map(fieldName => StructField(fieldName, StringType, true)))
 
     // 데이터셋으로 변환
     val df = spark.createDataFrame(tutu , schema)
-    df.show(50, false)
+    df.show(tupleList.count().toInt, false)
+
   }
 }
 
