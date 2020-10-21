@@ -23,7 +23,7 @@ object getDataFromHdfs {
     sc.setLogLevel("ERROR")
 
     //HDFS 파일 시스템에 있는 파일을 RDD 로드
-    val lines = sc.textFile("hdfs://ijdn01.iljincns.co.kr:8020/user/logstash/dt=2020-10-20/cutparam-06.log")
+    val lines = sc.textFile("hdfs://ijdn01.iljincns.co.kr:8020/user/logstash/dt=2020-10-21/cutparam-01.log")
 
     //[STEP-1] <[{> RowsData 앞 데이터 분리
     val rdd2 = lines.flatMap(_.split(",\"RowsData\":\\[\\{"))
@@ -121,6 +121,9 @@ object getDataFromHdfs {
     // 데이터셋으로 변환
     val df = spark.createDataFrame(tutu , schema)
     df.show(tupleList.count().toInt, false)
+
+    //[STEP-9] Table 저장
+    df.write.save("/tmp/sub/json")
 
   }
 }
