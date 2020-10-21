@@ -1,24 +1,31 @@
 package com.iljin.scala
 
+import org.apache.spark.sql.functions._
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 
 object getDataFromHdfs {
   def main(args: Array[String]): Unit = {
 
-    val spark: SparkSession = SparkSession.builder.master("yarn").getOrCreate
+//    val conf = new SparkConf()
+//
+//    conf.setMaster("yarn")
+//      .setAppName("sspark")
+//      .set("spark.cleaner.referenceTracking", "false")
+//      .set("spark.cleaner.referenceTracking.blocking", "false")
+//      .set("spark.cleaner.referenceTracking.blocking.shuffle", "false")
+//      .set("spark.cleaner.referenceTracking.cleanCheckpoints", "false")
+//  val sc = new SparkContext(conf)
 
-    val conf = new SparkConf()
+    val spark = SparkSession
+      .builder
+      .appName("spark-test")
+      .master("yarn")
+      .config("spark.sql.warehouse.dir","/warehouse/tablespace/managed/hive")
+      .enableHiveSupport()
+      .getOrCreate
 
-    conf.setMaster("yarn")
-      .setAppName("sspark")
-      .set("spark.cleaner.referenceTracking", "false")
-      .set("spark.cleaner.referenceTracking.blocking", "false")
-      .set("spark.cleaner.referenceTracking.blocking.shuffle", "false")
-      .set("spark.cleaner.referenceTracking.cleanCheckpoints", "false")
-
-    //val sc = new SparkContext(conf)
     val sc = spark.sparkContext
     sc.setLogLevel("ERROR")
 
@@ -120,10 +127,20 @@ object getDataFromHdfs {
 
     // 데이터셋으로 변환
     val df = spark.createDataFrame(tutu , schema)
-    df.show(tupleList.count().toInt, false)
+//    df.show(tupleList.count().toInt, false)
 
-    //[STEP-9] Table 저장
-    df.write.save("/tmp/sub/json")
+    //[STEP-9] hdfs 저장
+//    df.write
+//      .format("com.databricks.spark.csv")
+//      .option("header","false")
+//      .save("/tmp/sub/json")
+
+//    df.createOrReplaceTempView("cutparam")
+//    spark.sql("select MachineID, CutID, Program, ItemValue, CompleteRate from cutparam where CompleteRate > 20").show
+
+    //[STEP-10] table 저장
+    df.write.mode(SaveMode.ErrorIfExists).saveAsTable("cutparam")
+    //spark.sql("select * from cutparam").show
 
   }
 }
