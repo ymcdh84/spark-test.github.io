@@ -64,6 +64,7 @@ object getDataFromHdfs {
       }
     })
 
+    //[STEP-4] frontLine,backLine Index append
     var frontLineIdxT: RDD[(String, Long)] = null
     var frontLineIdx: RDD[(Long, String)] = null
 
@@ -119,8 +120,6 @@ object getDataFromHdfs {
                       row => {
                         row.split(",")
                       })
-
-    tupleList2.collect().foreach(p => println(p.deep))
 
     //키값 분리
     val keys = tupleList2.map(row => {
