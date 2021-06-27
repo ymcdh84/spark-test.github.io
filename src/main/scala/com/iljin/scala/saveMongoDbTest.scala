@@ -1,7 +1,8 @@
 package com.iljin.scala
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Row, SparkSession}
 import com.mongodb.spark.MongoSpark
+import org.bson.Document
 
 object  saveMongoDbTest {
 
@@ -9,9 +10,12 @@ object  saveMongoDbTest {
     val spark =  SparkSession
       .builder
       .master("local[*]")
-      .appName("dispMachine11")
+      .appName("saveMongoDbTest")
+      .config("spark.mongodb.input.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111")
+      .config("spark.mongodb.output.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111")
       .getOrCreate
 
+    val sc = spark.sparkContext
 
     val kafkaStreamDF =  spark
       .readStream
@@ -22,24 +26,29 @@ object  saveMongoDbTest {
       .load()
 
     //kafkaStreamDF.show
-    val dataSet =  kafkaStreamDF
+    val dataFrame =  kafkaStreamDF
       //.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
       .selectExpr("CAST(value AS STRING)")
       .toDF
 
-    println("333444555Data Input Start!!333444555")
+    println("00000000000000000000011111")
+//     dataFrame.show()
+//   val rddData = dataFrame.rdd
+    println("!1111111111111111111111222")
 
+    MongoSpark.save(dataFrame.write.option("uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111").mode("overwrite"))
+//    sc.parallelize(dataFrame.map(Document.parse))
     //[STEP - 1] MongoDB Data Insert
-    val toMongo = MongoSpark.save(dataSet.write.option("uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding").mode("overwrite"))
+//    val toMongo = MongoSpark.save(documents)
 
     //MongoSpark.write(dataSet).mode(SaveMode.Append).save() // (1) line
 
     //The Kafka stream should written and in this case we are writing it to console
-    dataSet.writeStream
-      .outputMode("append")
-      .format("console")
-      .start()
-      .awaitTermination()
+//    dataSet.writeStream
+//      .outputMode("append")
+//      .format("console")
+//      .start()
+//      .awaitTermination()
   }
 }
 
