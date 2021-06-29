@@ -1,8 +1,11 @@
 package com.iljin.scala
 
-import org.apache.spark.sql.{Row, SparkSession}
 import com.mongodb.spark.MongoSpark
-import org.bson.Document
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.util.LongAccumulator
+import org.apache.spark.sql.streaming.Trigger
+
+import java.util.Calendar
 
 object  saveMongoDbTest {
 
@@ -11,11 +14,11 @@ object  saveMongoDbTest {
       .builder
       .master("local[*]")
       .appName("saveMongoDbTest")
-      .config("spark.mongodb.input.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111")
-      .config("spark.mongodb.output.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111")
+      //.config("spark.mongodb.input.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkMachine111")
+      //.config("spark.mongodb.output.uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkMachine111")
       .getOrCreate
 
-    val sc = spark.sparkContext
+    //val sc = spark.sparkContext
 
     val kafkaStreamDF =  spark
       .readStream
@@ -26,29 +29,28 @@ object  saveMongoDbTest {
       .load()
 
     //kafkaStreamDF.show
-    val dataFrame =  kafkaStreamDF
-      //.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+    val dataSet =  kafkaStreamDF
       .selectExpr("CAST(value AS STRING)")
-      .toDF
+      .toDF()
+    
+    // sends to MongoDB once every 20 seconds
+    val mongodb_uri = "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019"
 
-    println("00000000000000000000011111")
-//     dataFrame.show()
-//   val rddData = dataFrame.rdd
-    println("!1111111111111111111111222")
+    val mdb_name = "sharding"
+    val mdb_collection = "sparkMachine111"
 
-    MongoSpark.save(dataFrame.write.option("uri", "mongodb://rndadmin2:rnd1234!!@197.200.11.176:27019/sharding.sparkDispMachine111").mode("overwrite"))
-//    sc.parallelize(dataFrame.map(Document.parse))
-    //[STEP - 1] MongoDB Data Insert
-//    val toMongo = MongoSpark.save(documents)
+    val CountAccum: LongAccumulator = spark.sparkContext.longAccumulator("mongostreamcount")
 
-    //MongoSpark.write(dataSet).mode(SaveMode.Append).save() // (1) line
+    val structuredStreamForeachWriter: MongoDBForeachWriter = new MongoDBForeachWriter(mongodb_uri,mdb_name,mdb_collection,CountAccum)
+    val query = dataSet.writeStream
+      .foreach(structuredStreamForeachWriter)
+      //.trigger(Trigger.ProcessingTime("20 seconds"))
+      .start()
 
-    //The Kafka stream should written and in this case we are writing it to console
-//    dataSet.writeStream
-//      .outputMode("append")
-//      .format("console")
-//      .start()
-//      .awaitTermination()
+    while (!spark.streams.awaitAnyTermination(60000)) {
+      println(Calendar.getInstance().getTime()+" :: mongoEventsCount = "+CountAccum.value)
+    }
+
   }
 }
 
